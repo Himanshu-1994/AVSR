@@ -1,0 +1,123 @@
+import sys
+import os
+import dlib
+import glob
+from skimage import io
+import cv2
+from scipy import misc
+import numpy as np
+from scipy.fftpack import dct, idct
+import h5py
+from python_speech_features import mfcc
+
+
+def dct2(block):
+    return dct(dct(block.T, norm='ortho').T, norm='ortho')
+
+
+predictor_path = './trained_features/shape_predictor_68_face_landmarks.dat'
+data_path = '../../grid_corpus'
+faces_folder_path = './face_frames/face_data/'
+
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(predictor_path)
+win = dlib.image_window()
+
+
+def get_feature(audio):
+    c = mfcc(audio, F, winlen=0.01, winstep=0.005, numcep=40, nfilt=80, nfft=4096, lowfreq=80, highfreq=8000)
+    c = np.concatenate((np.zeros((len(c),2)), c, np.zeros((len(c),2))), axis=1)
+    delta1 = (c[:,2:]-c[:,0:-2])/2
+    delta2 = (delta1[:,2:]-delta1[:,0:-2])/2
+    feature = np.concatenate((c[:,2:-2], delta1[:,1:-1], delta2), axis=1)
+    return feature
+
+
+def detect(img):
+
+    dets = detector(img, 1)
+
+    print("Number of faces detected: {}".format(len(dets)))
+
+    # Get the landmarks/parts for the face in box d.
+    shape = predictor(img, dets[0])
+
+    xlist = []
+    ylist = []
+    for i in range(48, 68):      # 48,68 contains the lip features
+        # Store X and Y coordinates in two lists
+        xlist.append(float(shape.part(i).x))
+        ylist.append(float(shape.part(i).y))
+
+    xmin = np.int(min(xlist))
+    xmax = np.int(max(xlist))
+
+    ymin = np.int(min(ylist))
+    ymax = np.int(max(ylist))
+
+    img1 = img
+    cv2.rectangle(img, (xmin, ymin), (xmax, ymax), (255, 0, 0), 2)
+
+    img_crop = img1[ymin:ymax, xmin:xmax]
+    gray_img = cv2.cvtColor(img_crop, cv2.COLOR_BGR2GRAY)
+    img_mouth = np.array(misc.imresize(gray_img, (64, 64)), dtype='float') / 255.0
+
+    dct_img = dct2(img_mouth)
+    dcts = dct_img.reshape(64*64)
+    inds = np.argpartition(abs(dcts),-100)[-100:]
+
+    sorted_dct = dcts[np.argsort(dcts[inds])]
+    sorted_dct = np.fliplr([sorted_dct])[0]
+
+    return sorted_dct
+
+
+for i in range(0, 33):
+
+    audio_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/*.wav'))
+    align_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/align/*.align'))
+    video_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/video/mpg_6000/*.mpg'))
+
+    if len(audio_list) != len(align_list) != len(video_list):
+        lenth = min(len(audio_list), len(align_list))
+        print('Error! not equal length in s' + str(i + 1))
+    else:
+        length = len(audio_list)
+
+    f_vid = h5py.File((data_path + 's' + str(i+1) + '/video/' + 'video_dct100' + '.hdf5'), 'w')
+    f_aud = h5py.File((data_path + 's' + str(i + 1) +  'audio_mfcc' + '.hdf5'), 'w')
+
+    for j in range(0, length):
+
+        if audio_list[j][-10:-4] != align_list[j][-12:-6] != video_list[j][:-4]:
+            print(
+            "Error! audio file name " + audio_list[j] + " doesn't match with align or video file name " + align_list[j])
+
+        grp_vid = f_vid.create_group(video_list[j][-10:-4])
+        grp_aud = f_aud.create_group(audio_list[j][-10:-4])
+
+        F, audio = read(audio_list[j], mmap=False)
+        mfcc_vec = get_feature(audio)
+        dset_a = grp_aud.create_dataset("zipped", data=mfcc_vec, compression="gzip", chunks=True)
+
+        video = cv2.VideoCapture(video_list[j])
+
+        read = False
+        read,frame = video.read()
+
+        vid_dct = []
+
+        while read:
+            dct_100 = detect(frame)
+
+            if len(vid_dct > 0):
+                insert = (vid_dct[-1]+dct_100)/2.
+                vid_dct.append(insert)
+
+            vid_dct.append(dct_100)
+            read,frame = video.read()
+
+        vid_dct.append(vid_dct[-1])
+        video_dct_interp = np.asarray(vid_dct)
+        dset = grp_vid.create_dataset("zipped", data=video_dct_interp, compression="gzip", chunks=True)
+
