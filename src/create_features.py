@@ -35,11 +35,16 @@ def get_feature(audio,F):
 
 def detect(img):
 
+    status = 0
     dets = detector(img, 1)
 
   #  print("Number of faces detected: {}".format(len(dets)))
 
     # Get the landmarks/parts for the face in box d.
+    if len(dets) ==0:
+        print ('error, dets = 0' )
+        return 0,status
+
     shape = predictor(img, dets[0])
 
     xlist = []
@@ -69,8 +74,10 @@ def detect(img):
     sorted_dct = dcts[np.argsort(dcts[inds])]
     sorted_dct = np.fliplr([sorted_dct])[0]
 
-    return sorted_dct
+    status = 1
+    return sorted_dct,status
 
+badfiles = [[] for x in xrange(10)]
 
 for i in range(10):
 
@@ -89,6 +96,7 @@ for i in range(10):
 
 #    for j in range(0, length):
     for j in range(0, length):
+        print ('file',j)
         print (audio_list[j])
         if audio_list[j][-10:-4] != align_list[j][-12:-6] != video_list[j][:-4]:
             print(
@@ -97,12 +105,6 @@ for i in range(10):
 #        grp_vid = f_vid.create_group(video_list[j][-10:-4])
 #        grp_aud = f_aud.create_group(audio_list[j][-10:-4])
 
-        F, audio = read(audio_list[j])
-       # print ('rate',F)
-        mfcc_vec = get_feature(audio,F)
-        #sa = 'zipped'+str(j)
-        dset_a = f_aud.create_dataset(audio_list[j][-10:-4], data=mfcc_vec, compression="gzip", chunks=True)
-
         print (video_list[j],'video')
         video = cv2.VideoCapture(video_list[j])
 
@@ -110,19 +112,32 @@ for i in range(10):
         rd,frame = video.read()
 
         vid_dct = []
-        i=0
+
         while rd:
-            dct_100 = detect(frame)
+            dct_100,status = detect(frame)
+
         #    print ('frames',i)
     #        if (len(vid_dct) > 0):
         #        insert = (vid_dct[-1]+dct_100)/2.
 
      #           vid_dct.append(insert)
-
+            if status == 0:
+                badfiles[i].append(j)
+                break
             vid_dct.append(dct_100)
             rd,frame = video.read()
-            i+=1
+
+        if status == 0:
+            continue
        # vid_dct.append(vid_dct[-1])
         video_dct_interp = np.asarray(vid_dct)
         dset = f_vid.create_dataset(video_list[j][-10:-4], data=video_dct_interp, compression="gzip", chunks=True)
         print ('size of dct',video_dct_interp.shape)
+
+        F, audio = read(audio_list[j])
+        # print ('rate',F)
+        mfcc_vec = get_feature(audio, F)
+        # sa = 'zipped'+str(j)
+        dset_a = f_aud.create_dataset(audio_list[j][-10:-4], data=mfcc_vec, compression="gzip", chunks=True)
+    print (i,'complete')
+    np.save('badfiles',badfiles)
