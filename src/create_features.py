@@ -15,7 +15,7 @@ def dct2(block):
     return dct(dct(block.T, norm='ortho').T, norm='ortho')
 
 
-predictor_path = '../trained_features/shape_predictor_68_face_landmarks.dat'
+predictor_path = '../shape_predictor_68_face_landmarks.dat'
 data_path = '../../grid_corpus/'
 #faces_folder_path = './face_frames/face_data/'
 
