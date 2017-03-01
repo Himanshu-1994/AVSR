@@ -16,7 +16,7 @@ def dct2(block):
 
 
 predictor_path = '../trained_features/shape_predictor_68_face_landmarks.dat'
-data_path = '../'
+data_path = '../../grid_corpus/'
 #faces_folder_path = './face_frames/face_data/'
 
 detector = dlib.get_frontal_face_detector()
