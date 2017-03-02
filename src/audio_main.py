@@ -25,7 +25,7 @@ import keras.callbacks
 
 # Global variables
 # grid_corpus = '../../../himanshu/grid_corpus/'
-grid_corpus = '../'
+grid_corpus = '../data/'
 F = 50000.0
 
 # Input Parameters
@@ -62,13 +62,13 @@ input_time_length = time_length // (pool_size ** 2)
 
 def text_to_labels(text):
     ret = []
-    ret.append(27)
-    ret.append(27)
+    ret.append(26)
+    ret.append(26)
     for char in text:
         if char >= 'a' and char <= 'z':
-            ret.append(ord(char) - ord('a')+1)
-            ret.append(27)
-    ret.append(27)
+            ret.append(ord(char) - ord('a'))
+            ret.append(26)
+    ret.append(26)
     return ret
 
 def get_feature(audio):
@@ -83,7 +83,7 @@ def get_audio_label( size =100, cookies =[0,0,0]):
     [i0,j0,k0] = cookies
     count = 0
     data_audio , data_label = [],[]
-    for i in range(i0, 32): 
+    for i in range(i0, 1):
 
         audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
         align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
@@ -125,27 +125,28 @@ def get_audio_label( size =100, cookies =[0,0,0]):
 
     return np.array(data_audio), np.array(data_label), cookies
 
-def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =100, cookies =[0,0,0]):
+def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =10, cookies =[0,0,0]):
     while 1:
         data_audio, data_label, cookies = get_audio_label( size, cookies)
         trainX, trainY, label_length = [], [], []
         for i in range(size):
             trainX.append(get_feature(data_audio[i]))
             trainY.append(text_to_labels(data_label[i]))
-            label_length.append(len(data_label[i]))
-        input_length = np.array([np.ceil(k.shape[0]/4.0) for k in trainX])
+            label_length.append(len(text_to_labels(data_label[i])))
+#        input_length = np.array([np.ceil(k.shape[0]/4.0) for k in trainX])
         trainX = sequence.pad_sequences(np.array(trainX), maxlen=time_length, padding='post', dtype=float).reshape(-1,time_length,feature_length,1)
-        trainY = sequence.pad_sequences(np.array(trainY), maxlen=max_string_len, padding='post', dtype=float)
+        trainY = sequence.pad_sequences(np.array(trainY), maxlen=max_string_len, padding='post', dtype=int32,value=-1)
         # input_length = np.ones(size)*input_time_length
         label_length = np.array(label_length)
         textY = data_label
-
+        input_length = np.array([np.ceil(k.shape[0] / 4.0) for k in trainX])
         inputs = {'the_input': trainX,
                   'the_labels': trainY,
                   'input_length': input_length,
                   'label_length': label_length,
                   'source_str': textY  # used for visualization only
                   }
+    #   print inputs
         outputs = {'ctc': np.zeros([size])}  # dummy data for dummy loss function
         yield (inputs, outputs)
 
@@ -171,7 +172,7 @@ def ctc_lambda_func(args):
     y_pred, labels, input_length, label_length = args
     # the 2 is critical here since the first couple outputs of the RNN
     # tend to be garbage:
-    y_pred = y_pred[:, :, :]   # The first argument should be from 2: , Since K.image_dim_ordering() == 'tf' !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ #   y_pred = y_pred[:, :, :]   # The first argument should be from 2: , Since K.image_dim_ordering() == 'tf' !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
 
 
@@ -200,7 +201,7 @@ class VizCallback(keras.callbacks.Callback):
     #     print('\nOut of %d samples:  Mean edit distance: %.3f Mean normalized edit distance: %0.3f'
     #           % (num, mean_ed, mean_norm_ed))
 
-    def on_epoch_end(self, epoch):
+    def on_epoch_end(self, epoch,logs={}):
         # self.show_edit_distance(256)
         word_batch = next(self.text_img_gen)[0]
         res = decode_batch(self.test_func, word_batch['the_input'], word_batch['input_length'] )
@@ -258,6 +259,9 @@ viz_cb = VizCallback(test_func, getdata())
 model.fit_generator(generator=getdata(), samples_per_epoch=40,
                     nb_epoch=10, validation_data=getdata(), nb_val_samples=40,
                     callbacks=[viz_cb])
+
+#model.fit_generator(generator=getdata(), samples_per_epoch=1,
+#                    nb_epoch=10)
 
 # build_model()
 

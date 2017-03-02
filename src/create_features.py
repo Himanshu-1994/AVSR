@@ -77,7 +77,7 @@ def detect(img):
     status = 1
     return sorted_dct,status
 
-badfiles = [[] for x in xrange(10)]
+badfiles = [[] for x in range(10)]
 
 for i in range(10):
 
