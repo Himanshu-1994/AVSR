@@ -25,7 +25,7 @@ import keras.callbacks
 
 # Global variables
 # grid_corpus = '../../../himanshu/grid_corpus/'
-grid_corpus = '../data/'
+grid_corpus = '../../grid_corpus/'
 F = 50000.0
 
 # Input Parameters
@@ -83,7 +83,7 @@ def get_audio_label( size =100, cookies =[0,0,0]):
     [i0,j0,k0] = cookies
     count = 0
     data_audio , data_label = [],[]
-    for i in range(i0, 1):
+    for i in range(i0, 3):
 
         audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
         align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
@@ -125,7 +125,7 @@ def get_audio_label( size =100, cookies =[0,0,0]):
 
     return np.array(data_audio), np.array(data_label), cookies
 
-def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =10, cookies =[0,0,0]):
+def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =100, cookies =[0,0,0]):
     while 1:
         data_audio, data_label, cookies = get_audio_label( size, cookies)
         trainX, trainY, label_length = [], [], []
@@ -155,8 +155,10 @@ def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size
 def decode_batch(test_func, word_batch, input_length):
     out = test_func([word_batch])[0]
     ret = []
+    #print ('out shape\n\n',out.shape)
     for j in range(out.shape[0]):
-        out_best = list(np.argmax(out[j, 0:input_length[j]], 1))
+        # print ('inp_len',input_length[j])
+        out_best = list(np.argmax(out[j, 0:np.int(input_length[j])], 1))
         out_best = [k for k, g in itertools.groupby(out_best)]
         # 27 is CTC blank char
         outstr = ''
@@ -205,6 +207,8 @@ class VizCallback(keras.callbacks.Callback):
         # self.show_edit_distance(256)
         word_batch = next(self.text_img_gen)[0]
         res = decode_batch(self.test_func, word_batch['the_input'], word_batch['input_length'] )
+        print ('result is  \n\n',res)
+        print ('actual strig\n\n',word_batch['source_str'])
         print(np.mean(res == word_batch['source_str']))
 
 
@@ -256,8 +260,8 @@ test_func = K.function([input_data],[y_pred])
 
 viz_cb = VizCallback(test_func, getdata())
 
-model.fit_generator(generator=getdata(), samples_per_epoch=40,
-                    nb_epoch=10, validation_data=getdata(), nb_val_samples=40,
+model.fit_generator(generator=getdata(), samples_per_epoch=1000,
+                    nb_epoch=1, validation_data=getdata(), nb_val_samples=40,
                     callbacks=[viz_cb])
 
 #model.fit_generator(generator=getdata(), samples_per_epoch=1,

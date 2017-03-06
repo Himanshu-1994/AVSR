@@ -77,10 +77,11 @@ def detect(img):
     status = 1
     return sorted_dct,status
 
-badfiles = [[] for x in range(10)]
+#badfiles = [[] for x in range(10)]
 
-for i in range(10):
-
+for i in [2,3,4,5,6,7,8]:
+#for i in range(10):
+    badfiles = []
     audio_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/*.wav'))
     align_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/align/*.align'))
     video_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/video/mpg_6000/*.mpg'))
@@ -122,7 +123,7 @@ for i in range(10):
 
      #           vid_dct.append(insert)
             if status == 0:
-                badfiles[i].append(j)
+                badfiles.append(j)
                 break
             vid_dct.append(dct_100)
             rd,frame = video.read()
@@ -139,5 +140,8 @@ for i in range(10):
         mfcc_vec = get_feature(audio, F)
         # sa = 'zipped'+str(j)
         dset_a = f_aud.create_dataset(audio_list[j][-10:-4], data=mfcc_vec, compression="gzip", chunks=True)
+    np.save('badfiles'+str(i),badfiles)
     print (i,'complete')
-    np.save('badfiles',badfiles)
+  
+
+
