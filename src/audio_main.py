@@ -7,6 +7,7 @@ import glob
 import time
 from pylab import *
 from python_speech_features import mfcc
+import h5py
 
 import os
 import itertools
@@ -26,6 +27,8 @@ import keras.callbacks
 # Global variables
 # grid_corpus = '../../../himanshu/grid_corpus/'
 grid_corpus = '../../grid_corpus/'
+mfcc_audios = h5py.File(grid_corpus + 's' + str(1) + '/audio_mfcc.hdf5',"r")
+
 F = 50000.0
 
 # Input Parameters
@@ -80,33 +83,42 @@ def get_feature(audio):
     return feature
 
 def get_audio_label( size =100, cookies =[0,0,0]):
+    global mfcc_audios
     [i0,j0,k0] = cookies
     count = 0
     data_audio , data_label = [],[]
     while(1):
-        for i in range(i0, 3):
+        for i in range(i0, 1):
 
-            audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
+            # audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
             align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
-            if len(audio_list) !=len(align_list):
-                length = min(len(audio_list),len(align_list))
-                print('Error! not equal length in s' + str(i+1))
-            else:
-                length = len(audio_list)
+            # if len(audio_list) !=len(align_list):
+            #     length = min(len(audio_list),len(align_list))
+            #     print('Error! not equal length in s' + str(i+1))
+            # else:
+            length = len(align_list)
 
+            if [j0,k0]==[0,0]:
+                mfcc_audios.close()
+                mfcc_audios = h5py.File(grid_corpus + 's' + str(i+1) + '/audio_mfcc.hdf5',"r")
             for j in range(j0, length):
 
-                if audio_list[j][-10:-4] != align_list[j][-12:-6]:
-                    print("Error! audio file name " + audio_list[j] + " doesn't match with align file name " + align_list[j])
+                # if audio_list[j][-10:-4] != align_list[j][-12:-6]:
+                #     print("Error! audio file name " + audio_list[j] + " doesn't match with align file name " + align_list[j])
+
+                try:
+                    mfcc_audio = mfcc_audios[align_list[j][-12:-6]][:]
+                except KeyError:
+                    continue
 
                 align = asciitable.read(align_list[j])
-                F, audio = read(audio_list[j], mmap=False)
-                if len(align) ==0:
-                    print('Error! align file ' + align_list[j] +' is empty')
+                # F, audio = read(audio_list[j], mmap=False)
+                # if len(align) ==0:
+                #     print('Error! align file ' + align_list[j] +' is empty')
                 for k in range(k0, len(align)):
-                    if align[k][2] =='sil':
+                    if align[k][2] =='sil' or (time_length< (align[k][1]//125 - align[k][0]//125)< 8):
                         continue
-                    data_audio.append(audio[2*align[k][0]: 2*align[k][1]])
+                    data_audio.append(mfcc_audio[align[k][0]//125: align[k][1]//125])
                     data_label.append(align[k][2])
                     count+=1
                     if count >=size:
@@ -118,15 +130,15 @@ def get_audio_label( size =100, cookies =[0,0,0]):
             j0 = 0
         i0 = 0
 
-    return np.array(data_audio), np.array(data_label), cookies
+    # return np.array(data_audio), np.array(data_label), cookies
 
 def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =100, cookies =[0,0,0]):
     while 1:
         data_audio, data_label, cookies = get_audio_label( size, cookies)
         print(cookies)
-        trainX, trainY, label_length = [], [], []
+        [trainX, trainY, label_length] = [data_audio, [], []]
         for i in range(size):
-            trainX.append(get_feature(data_audio[i]))
+            # trainX.append(get_feature(data_audio[i]))
             trainY.append(text_to_labels(data_label[i]))
             label_length.append(len(text_to_labels(data_label[i])))
 #        input_length = np.array([np.ceil(k.shape[0]/4.0) for k in trainX])
@@ -135,7 +147,7 @@ def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size
         input_length = np.ones(size)*input_time_length
         label_length = np.array(label_length)
         textY = data_label
-	# input_length = np.array([np.ceil(k.shape[0] / 4.0) for k in trainX])
+    # input_length = np.array([np.ceil(k.shape[0] / 4.0) for k in trainX])
         inputs = {'the_input': trainX,
                   'the_labels': trainY,
                   'input_length': input_length,
@@ -199,7 +211,7 @@ class VizCallback(keras.callbacks.Callback):
     #     print('\nOut of %d samples:  Mean edit distance: %.3f Mean normalized edit distance: %0.3f'
     #           % (num, mean_ed, mean_norm_ed))
 
-    def on_epoch_end(self, epoch,logs={}):
+    def on_epoch_end(self, logs={}):
         # self.show_edit_distance(256)
         word_batch = next(self.text_img_gen)[0]
         res = decode_batch(self.test_func, word_batch['the_input'], word_batch['input_length'] )
@@ -222,18 +234,18 @@ conv_to_rnn_dims = (time_length // (pool_size ** 2), (feature_length // (pool_si
 inner = Reshape(target_shape=conv_to_rnn_dims, name='reshape')(inner)
 
 # cuts down input size going into RNN:
-inner = Dense(time_dense_size, activation=act, name='dense1')(inner)    # Giving dimension error ??????????????????????????????????????????????????
+inner = Dense(time_dense_size, activation=act, name='dense1')(inner)   
 
 # Two layers of bidirecitonal LSTMs
 lstm_1 = LSTM(rnn_size, return_sequences=True, init='he_normal', name='lstm1')(inner)
 lstm_1b = LSTM(rnn_size, return_sequences=True, go_backwards=True, init='he_normal', name='lstm1_b')(inner)
-lstm1_merged = merge([lstm_1, lstm_1b], mode='sum')     #see whether to sum or concat ??????????????????????????????????????????????????????????????
+lstm1_merged = merge([lstm_1, lstm_1b], mode='sum')     
 lstm_2 = LSTM(rnn_size, return_sequences=True, init='he_normal', name='lstm2')(lstm1_merged)
 lstm_2b = LSTM(rnn_size, return_sequences=True, go_backwards=True, init='he_normal', name='lstm2_b')(lstm1_merged)
 
 # transforms RNN output to character activations:
 inner = Dense(num_class, init='he_normal',
-              name='dense2')(merge([lstm_2, lstm_2b], mode='concat'))   # Giving dimension error ?????????????????????????????????????????
+              name='dense2')(merge([lstm_2, lstm_2b], mode='concat'))   
 y_pred = Activation('softmax', name='softmax')(inner)
 Model(input=[input_data], output=y_pred).summary()
 
@@ -256,9 +268,8 @@ test_func = K.function([input_data],[y_pred])
 
 viz_cb = VizCallback(test_func, getdata(size=16))
 
-model.fit_generator(generator=getdata(size=64), samples_per_epoch=4096,
-                    nb_epoch=5, validation_data=getdata(size=32), nb_val_samples=128,
-                    callbacks=[viz_cb])
+model.fit_generator(generator=getdata(size=256), samples_per_epoch=16384,
+                    nb_epoch=5, callbacks=[viz_cb])
 
 #model.fit_generator(generator=getdata(), samples_per_epoch=1,
 #                    nb_epoch=10)
@@ -269,20 +280,14 @@ model.fit_generator(generator=getdata(size=64), samples_per_epoch=4096,
 
 
 # trainX, trainY, input_length, label_length, textX = getdata(time_length, input_time_length, max_string_len)
+'''
+result is  
 
-#result is  
-
-# ['i', 'ai', 'o', 'so', 'la', 'l', '', 'y', 'i', 'lase', 'laa', 'l', '', 'i', 's', 'n']
-#actual strig
-
-# ['at' 'i' 'four' 'soon' 'place' 'blue' 'at' 'i' 'five' 'please' 'place'
-# 'blue' 'at' 'i' 'six' 'again']
-
-''' ['n', '', 'ne', 'sn', 'le', 'en', 'win', '', 'ne', 'ain', 'le', 'ley', 'in', 't', 'ze', 'please']
+ ['set', 'blue', 'at', 'h', 'ne', 'again', 'set', 'blue', 'at', 'h', 'zero', 'please', 'set', 'blue', 'at', 'ein']
 actual strig
 
- ['in' 'u' 'nine' 'soon' 'place' 'blue' 'in' 'v' 'one' 'again' 'place'
- 'blue' 'in' 'v' 'zero' 'please']
-0.125
+ ['set' 'blue' 'at' 'h' 'one' 'again' 'set' 'blue' 'at' 'h' 'zero' 'please'
+ 'set' 'blue' 'at' 'n']
+0.875
 '''
 # write('../data/s1.wav', 50000, data_audio[0])
