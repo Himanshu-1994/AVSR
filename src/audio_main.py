@@ -63,11 +63,11 @@ input_time_length = time_length // (pool_size ** 2)
 def text_to_labels(text):
     ret = []
     ret.append(26)
-    ret.append(26)
+    #ret.append(26)
     for char in text:
         if char >= 'a' and char <= 'z':
             ret.append(ord(char) - ord('a'))
-            ret.append(26)
+            #ret.append(26)
     ret.append(26)
     return ret
 
@@ -83,63 +83,59 @@ def get_audio_label( size =100, cookies =[0,0,0]):
     [i0,j0,k0] = cookies
     count = 0
     data_audio , data_label = [],[]
-    for i in range(i0, 3):
+    while(1):
+        for i in range(i0, 3):
 
-        audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
-        align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
-        if len(audio_list) !=len(align_list):
-            lenth = min(len(audio_list),len(align_list))
-            print('Error! not equal length in s' + str(i+1))
-        else:
-            length = len(audio_list)
-
-        for j in range(j0, length):
-
-            if audio_list[j][-10:-4] != align_list[j][-12:-6]:
-                print("Error! audio file name " + audio_list[j] + " doesn't match with align file name " + align_list[j])
-
-            align = asciitable.read(align_list[j])
-            F, audio = read(audio_list[j], mmap=False)
-            if len(align) ==0:
-                print('Error! align file ' + align_list[j] +' is empty')
-            for k in range(k0, len(align)):
-                if align[k][2] =='sil':
-                    continue
-                data_audio.append(audio[2*align[k][0]: 2*align[k][1]])
-                data_label.append(align[k][2])
-                count+=1
-                if count >=size:
-                    cookies[2] = (k+1)%len(align)
-                    cookies[1] = (j+1)%length if cookies[2] == 0 else j
-                    cookies[0] = (i+1)%33 if cookies[1] == 0 else i
-                    break
+            audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
+            align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
+            if len(audio_list) !=len(align_list):
+                length = min(len(audio_list),len(align_list))
+                print('Error! not equal length in s' + str(i+1))
             else:
+                length = len(audio_list)
+
+            for j in range(j0, length):
+
+                if audio_list[j][-10:-4] != align_list[j][-12:-6]:
+                    print("Error! audio file name " + audio_list[j] + " doesn't match with align file name " + align_list[j])
+
+                align = asciitable.read(align_list[j])
+                F, audio = read(audio_list[j], mmap=False)
+                if len(align) ==0:
+                    print('Error! align file ' + align_list[j] +' is empty')
+                for k in range(k0, len(align)):
+                    if align[k][2] =='sil':
+                        continue
+                    data_audio.append(audio[2*align[k][0]: 2*align[k][1]])
+                    data_label.append(align[k][2])
+                    count+=1
+                    if count >=size:
+                        cookies[2] = (k+1)%len(align)
+                        cookies[1] = (j+1)%length if cookies[2] == 0 else j
+                        cookies[0] = (i+1)%33 if cookies[1] == 0 else i
+                        return np.array(data_audio), np.array(data_label), cookies
                 k0 = 0
-                continue
-            break
-        else:
             j0 = 0
-            continue
-        break
-    i0 = 0
+        i0 = 0
 
     return np.array(data_audio), np.array(data_label), cookies
 
 def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =100, cookies =[0,0,0]):
     while 1:
         data_audio, data_label, cookies = get_audio_label( size, cookies)
+        print(cookies)
         trainX, trainY, label_length = [], [], []
         for i in range(size):
             trainX.append(get_feature(data_audio[i]))
             trainY.append(text_to_labels(data_label[i]))
             label_length.append(len(text_to_labels(data_label[i])))
 #        input_length = np.array([np.ceil(k.shape[0]/4.0) for k in trainX])
-        trainX = sequence.pad_sequences(np.array(trainX), maxlen=time_length, padding='post', dtype=float).reshape(-1,time_length,feature_length,1)
+        trainX = sequence.pad_sequences(np.array(trainX), maxlen=time_length, padding='post', dtype=float16).reshape(-1,time_length,feature_length,1)
         trainY = sequence.pad_sequences(np.array(trainY), maxlen=max_string_len, padding='post', dtype=int32,value=-1)
-        # input_length = np.ones(size)*input_time_length
+        input_length = np.ones(size)*input_time_length
         label_length = np.array(label_length)
         textY = data_label
-        input_length = np.array([np.ceil(k.shape[0] / 4.0) for k in trainX])
+	# input_length = np.array([np.ceil(k.shape[0] / 4.0) for k in trainX])
         inputs = {'the_input': trainX,
                   'the_labels': trainY,
                   'input_length': input_length,
@@ -160,11 +156,11 @@ def decode_batch(test_func, word_batch, input_length):
         # print ('inp_len',input_length[j])
         out_best = list(np.argmax(out[j, 0:np.int(input_length[j])], 1))
         out_best = [k for k, g in itertools.groupby(out_best)]
-        # 27 is CTC blank char
+        # 26 is CTC blank char
         outstr = ''
         for c in out_best:
-            if c >= 1 and c < 27:
-                outstr += chr(c + ord('a')-1)
+            if c >= 0 and c < 26:
+                outstr += chr(c + ord('a'))
             # elif c == 26:
             #     outstr += ' '
         ret.append(outstr)
@@ -258,10 +254,10 @@ model.compile(loss={'ctc': lambda y_true, y_pred: y_pred}, optimizer=sgd)
 
 test_func = K.function([input_data],[y_pred])
 
-viz_cb = VizCallback(test_func, getdata())
+viz_cb = VizCallback(test_func, getdata(size=16))
 
-model.fit_generator(generator=getdata(), samples_per_epoch=1000,
-                    nb_epoch=1, validation_data=getdata(), nb_val_samples=40,
+model.fit_generator(generator=getdata(size=64), samples_per_epoch=4096,
+                    nb_epoch=5, validation_data=getdata(size=32), nb_val_samples=128,
                     callbacks=[viz_cb])
 
 #model.fit_generator(generator=getdata(), samples_per_epoch=1,
@@ -274,6 +270,19 @@ model.fit_generator(generator=getdata(), samples_per_epoch=1000,
 
 # trainX, trainY, input_length, label_length, textX = getdata(time_length, input_time_length, max_string_len)
 
+#result is  
 
+# ['i', 'ai', 'o', 'so', 'la', 'l', '', 'y', 'i', 'lase', 'laa', 'l', '', 'i', 's', 'n']
+#actual strig
 
+# ['at' 'i' 'four' 'soon' 'place' 'blue' 'at' 'i' 'five' 'please' 'place'
+# 'blue' 'at' 'i' 'six' 'again']
+
+''' ['n', '', 'ne', 'sn', 'le', 'en', 'win', '', 'ne', 'ain', 'le', 'ley', 'in', 't', 'ze', 'please']
+actual strig
+
+ ['in' 'u' 'nine' 'soon' 'place' 'blue' 'in' 'v' 'one' 'again' 'place'
+ 'blue' 'in' 'v' 'zero' 'please']
+0.125
+'''
 # write('../data/s1.wav', 50000, data_audio[0])
