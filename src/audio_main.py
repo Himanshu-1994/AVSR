@@ -89,32 +89,17 @@ def get_audio_label( size =100, cookies =[0,0,0]):
     data_audio , data_label = [],[]
     while(1):
         for i in range(i0, 1):
-
-            # audio_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/*.wav'))
-            align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
-            # if len(audio_list) !=len(align_list):
-            #     length = min(len(audio_list),len(align_list))
-            #     print('Error! not equal length in s' + str(i+1))
-            # else:
-            length = len(align_list)
-
             if [j0,k0]==[0,0]:
                 mfcc_audios.close()
-                mfcc_audios = h5py.File(grid_corpus + 's' + str(i+1) + '/audio_mfcc.hdf5',"r")
-            for j in range(j0, length):
-
-                # if audio_list[j][-10:-4] != align_list[j][-12:-6]:
-                #     print("Error! audio file name " + audio_list[j] + " doesn't match with align file name " + align_list[j])
-
+                mfcc_audios = h5py.File(grid_corpus + 's' + str(i+1) + '/audio_mfcc.hdf5',"r")  
+                align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
+            for j in range(j0, len(align_list)):
                 try:
                     mfcc_audio = mfcc_audios[align_list[j][-12:-6]][:]
                 except KeyError:
                     continue
-
                 align = asciitable.read(align_list[j])
-                # F, audio = read(audio_list[j], mmap=False)
-                # if len(align) ==0:
-                #     print('Error! align file ' + align_list[j] +' is empty')
+
                 for k in range(k0, len(align)):
                     if align[k][2] =='sil' or (time_length< (align[k][1]//125 - align[k][0]//125)< 8):
                         continue
