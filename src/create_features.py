@@ -69,9 +69,9 @@ def detect(img):
 
     dct_img = dct2(img_mouth)
     dcts = dct_img.reshape(64*64)
-    inds = np.argpartition(abs(dcts),-100)[-100:]
-
-    sorted_dct = dcts[np.argsort(dcts[inds])]
+    inds = np.argpartition(abs(dcts),-500)[-500:]
+    select_dct = dcts[inds]
+    sorted_dct = select_dct[np.argsort(select_dct)]
     sorted_dct = np.fliplr([sorted_dct])[0]
 
     status = 1
@@ -79,7 +79,7 @@ def detect(img):
 
 #badfiles = [[] for x in range(10)]
 
-for i in [2,3,4,5,6,7,8]:
+for i in range(33):
 #for i in range(10):
     badfiles = []
     audio_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/*.wav'))
