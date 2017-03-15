@@ -27,15 +27,15 @@ import keras.callbacks
 # Global variables
 # grid_corpus = '../../../himanshu/grid_corpus/'
 grid_corpus = '../../grid_corpus/'
-mfcc_audios = h5py.File(grid_corpus + 's' + str(1) + '/audio_mfcc.hdf5',"r")
-
+mfcc_audios = []#h5py.File(grid_corpus + 's' + str(1) + '/audio_mfcc.hdf5',"r")
+align_list = []
 F = 50000.0
 
 # Input Parameters
 time_length = 120
 feature_length = 120
 num_class = 28
-max_string_len = 16
+max_string_len = 12
 
 # Something about datasets
 # trainX        -> shape = (-1, time_length, feature_length)
@@ -50,7 +50,7 @@ max_string_len = 16
 
 # Network parameters
 conv_num_filters = 16
-filter_size = 3
+filter_size = 4
 pool_size = 2
 time_dense_size = 32
 rnn_size = 512
@@ -82,15 +82,20 @@ def get_feature(audio):
     feature = np.concatenate((c[:,2:-2], delta1[:,1:-1], delta2), axis=1)
     return feature
 
-def get_audio_label( size =100, cookies =[0,0,0]):
+def get_audio_label( size =100, cookies =[0,0,0], string='train'):
     global mfcc_audios
+    global align_list
     [i0,j0,k0] = cookies
+    if string=='train':
+        [start, end] = [0, 2]       ##change 2->30
+    elif string=='test':
+        [start, end] = [30, 32]
     count = 0
     data_audio , data_label = [],[]
     while(1):
-        for i in range(i0, 1):
+        for i in range(i0, end):
             if [j0,k0]==[0,0]:
-                mfcc_audios.close()
+                # mfcc_audios.close()
                 mfcc_audios = h5py.File(grid_corpus + 's' + str(i+1) + '/audio_mfcc.hdf5',"r")  
                 align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
             for j in range(j0, len(align_list)):
@@ -101,7 +106,7 @@ def get_audio_label( size =100, cookies =[0,0,0]):
                 align = asciitable.read(align_list[j])
 
                 for k in range(k0, len(align)):
-                    if align[k][2] =='sil' or (time_length< (align[k][1]//125 - align[k][0]//125)< 8):
+                    if align[k][2] =='sil' or not(time_length> (align[k][1]//125 - align[k][0]//125)> 8):
                         continue
                     data_audio.append(mfcc_audio[align[k][0]//125: align[k][1]//125])
                     data_label.append(align[k][2])
@@ -109,17 +114,43 @@ def get_audio_label( size =100, cookies =[0,0,0]):
                     if count >=size:
                         cookies[2] = (k+1)%len(align)
                         cookies[1] = (j+1)%length if cookies[2] == 0 else j
-                        cookies[0] = (i+1)%33 if cookies[1] == 0 else i
+                        cookies[0] = (i+1-start)%(end-start) +start if cookies[1] == 0 else i
                         return np.array(data_audio), np.array(data_label), cookies
                 k0 = 0
             j0 = 0
-        i0 = 0
+        i0 = start
 
     # return np.array(data_audio), np.array(data_label), cookies
 
-def getdata(time_length = 120, input_time_length = 30, max_string_len = 16, size =100, cookies =[0,0,0]):
+def get_train( size =100, cookies =[0,0,0]):
     while 1:
-        data_audio, data_label, cookies = get_audio_label( size, cookies)
+        data_audio, data_label, cookies = get_audio_label( size, cookies, 'train')
+        print(cookies)
+        [trainX, trainY, label_length] = [data_audio, [], []]
+        for i in range(size):
+            # trainX.append(get_feature(data_audio[i]))
+            trainY.append(text_to_labels(data_label[i]))
+            label_length.append(len(text_to_labels(data_label[i])))
+#        input_length = np.array([np.ceil(k.shape[0]/4.0) for k in trainX])
+        trainX = sequence.pad_sequences(np.array(trainX), maxlen=time_length, padding='post', dtype=float16).reshape(-1,time_length,feature_length,1)
+        trainY = sequence.pad_sequences(np.array(trainY), maxlen=max_string_len, padding='post', dtype=int32,value=-1)
+        input_length = np.ones(size)*input_time_length
+        label_length = np.array(label_length)
+        textY = data_label
+    # input_length = np.array([np.ceil(k.shape[0] / 4.0) for k in trainX])
+        inputs = {'the_input': trainX,
+                  'the_labels': trainY,
+                  'input_length': input_length,
+                  'label_length': label_length,
+                  'source_str': textY  # used for visualization only
+                  }
+    #   print inputs
+        outputs = {'ctc': np.zeros([size])}  # dummy data for dummy loss function
+        yield (inputs, outputs)
+
+def get_test( size =100, cookies =[30,0,0]):
+    while 1:
+        data_audio, data_label, cookies = get_audio_label( size, cookies, 'test')
         print(cookies)
         [trainX, trainY, label_length] = [data_audio, [], []]
         for i in range(size):
@@ -196,12 +227,12 @@ class VizCallback(keras.callbacks.Callback):
     #     print('\nOut of %d samples:  Mean edit distance: %.3f Mean normalized edit distance: %0.3f'
     #           % (num, mean_ed, mean_norm_ed))
 
-    def on_epoch_end(self, logs={}):
+    def on_epoch_end(self, epoch, logs={}):
         # self.show_edit_distance(256)
         word_batch = next(self.text_img_gen)[0]
         res = decode_batch(self.test_func, word_batch['the_input'], word_batch['input_length'] )
-        print ('result is  \n\n',res)
-        print ('actual strig\n\n',word_batch['source_str'])
+        print ('result is  \n\n',res[:20])
+        print ('actual strig\n\n',word_batch['source_str'][:20])
         print(np.mean(res == word_batch['source_str']))
 
 
@@ -214,6 +245,7 @@ inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max1')(inner)
 inner = Convolution2D(conv_num_filters, filter_size, filter_size, border_mode='same',
                       activation=act, init='he_normal', name='conv2')(inner)
 inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max2')(inner)
+# inner = MaxPooling2D(pool_size=(pool_size, pool_size), name='max3')(inner)
 
 conv_to_rnn_dims = (time_length // (pool_size ** 2), (feature_length // (pool_size ** 2)) * conv_num_filters)
 inner = Reshape(target_shape=conv_to_rnn_dims, name='reshape')(inner)
@@ -232,7 +264,7 @@ lstm_2b = LSTM(rnn_size, return_sequences=True, go_backwards=True, init='he_norm
 inner = Dense(num_class, init='he_normal',
               name='dense2')(merge([lstm_2, lstm_2b], mode='concat'))   
 y_pred = Activation('softmax', name='softmax')(inner)
-Model(input=[input_data], output=y_pred).summary()
+# Model(input=[input_data], output=y_pred).summary()
 
 labels = Input(name='the_labels', shape=[max_string_len], dtype='int32')
 input_length = Input(name='input_length', shape=[1], dtype='int64')
@@ -251,9 +283,9 @@ model.compile(loss={'ctc': lambda y_true, y_pred: y_pred}, optimizer=sgd)
 
 test_func = K.function([input_data],[y_pred])
 
-viz_cb = VizCallback(test_func, getdata(size=16))
+viz_cb = VizCallback(test_func, get_test(size=1024, cookies=[30,0,0]))
 
-model.fit_generator(generator=getdata(size=256), samples_per_epoch=16384,
+model.fit_generator(generator=get_train(size=64), samples_per_epoch=5120,
                     nb_epoch=5, callbacks=[viz_cb])
 
 #model.fit_generator(generator=getdata(), samples_per_epoch=1,
