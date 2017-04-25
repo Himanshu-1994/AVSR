@@ -141,7 +141,7 @@ for i in range(33):
         # sa = 'zipped'+str(j)
         dset_a = f_aud.create_dataset(audio_list[j][-10:-4], data=mfcc_vec, compression="gzip", chunks=True)
     np.save('badfiles'+str(i),badfiles)
-    print (i,'complete')
+    print (i,'complete') 
   
 
 
