@@ -6,9 +6,7 @@ from scipy.fftpack import dct
 import glob
 import time
 from pylab import *
-# from python_speech_features import mfcc
 import h5py
-# import editdistance
 import os
 import itertools
 import re
@@ -25,10 +23,9 @@ import keras.callbacks
 
 
 # Global variables
-# grid_corpus = '../../../himanshu/grid_corpus/'
-#grid_corpus = '../../grid_corpus/'
+
 grid_corpus = 'G:/himanshu/grid_corpus/'
-mfcc_audios = []#h5py.File(grid_corpus + 's' + str(1) + '/audio_mfcc.hdf5',"r")
+mfcc_audios = []
 videos = []
 align_list = []
 F = 50000.0
@@ -41,7 +38,6 @@ max_string_len = 12
 
 vocabulary = np.load('vocabulary.npy')
 
-# Something about datasets
 # trainX        -> shape = (-1, time_length, feature_length)
 # trainY        -> shape = (-1, max_string_len, num_class)
 #               -> first label_length will have strings, remaining will be pad with zeros
@@ -66,43 +62,8 @@ else:
 
 input_time_length = time_length ##// (pool_size ** 2)
 
-# def editdistance(s, t):
-#     """ 
-#         iterative_levenshtein(s, t) -> ldist
-#         ldist is the Levenshtein distance between the strings 
-#         s and t.
-#         For all i and j, dist[i,j] will contain the Levenshtein 
-#         distance between the first i characters of s and the 
-#         first j characters of t
-#     """
-#     rows = len(s)+1
-#     cols = len(t)+1
-#     dist = [[0 for x in range(cols)] for x in range(rows)]
-#     # source prefixes can be transformed into empty strings 
-#     # by deletions:
-#     for i in range(1, rows):
-#         dist[i][0] = i
-#     # target prefixes can be created from an empty source string
-#     # by inserting the characters
-#     for i in range(1, cols):
-#         dist[0][i] = i
-        
-#     for col in range(1, cols):
-#         for row in range(1, rows):
-#             if s[row-1] == t[col-1]:
-#                 cost = 0
-#             else:
-#                 cost = 1
-#             dist[row][col] = min(dist[row-1][col] + 1,      # deletion
-#                                  dist[row][col-1] + 1,      # insertion
-#                                  dist[row-1][col-1] + cost) # substitution
- 
-#     return dist[-1][-1]
-
-
 
 def  editdistance(target,source):
-   """ Minimum edit distance. Straight from the recurrence. """
 
    i = len(target); j = len(source)
 
@@ -131,7 +92,6 @@ def text_to_labels(text):
     return ret
 
 def get_feature(c):
-    # c = mfcc(audio, F, winlen=0.01, winstep=0.005, numcep=40, nfilt=80, nfft=4096, lowfreq=80, highfreq=8000)
     try:
         c = np.concatenate((np.zeros((len(c),2)), c, np.zeros((len(c),2))), axis=1)
     except ValueError:
@@ -146,7 +106,7 @@ def get_video_label1( size =100, cookies =[0,0,0], string='train'):
     global align_list
     [i0,j0,k0] = cookies
     if string=='train':
-        [start, end] = [0, 1]       ##change 2->30
+        [start, end] = [0, 1]      
     elif string=='test':
         [start, end] = [1, 2]
     count = 0
@@ -154,7 +114,6 @@ def get_video_label1( size =100, cookies =[0,0,0], string='train'):
     while(1):
         for i in range(i0, end):
             if [j0,k0]==[0,0]:
-                # mfcc_audios.close()
                 videos = h5py.File(grid_corpus + 's' + str(i+1) + '/video' + '/video_lip.hdf5',"r")  
                 align_list = np.sort(glob.glob(grid_corpus + 's' + str(i+1) + '/align/*.align'))
             for j in range(j0, len(align_list)):
@@ -180,18 +139,13 @@ def get_video_label1( size =100, cookies =[0,0,0], string='train'):
             j0 = 0
         i0 = start
 
-# for j in range( len(align_list)):
-#     try:
-#         video = videos[align_list[j][-12:-6]][:]
-#         print(j)
-#     except KeyError:
-#         continue
+
 def get_audio_label( size =100, cookies =[0,0,0], string='train'):
     global mfcc_audios
     global align_list
     [i0,j0,k0] = cookies
     if string=='train':
-        [start, end] = [0, 1]       ##change 2->30
+        [start, end] = [0, 1]       
     elif string=='test':
         [start, end] = [1, 2]
     count = 0
@@ -228,9 +182,9 @@ def get_audio_label( size =100, cookies =[0,0,0], string='train'):
 
 def get_train( size =100, cookies =[0,0,0]):
     while 1:
-        data_audio, data_label, cookies = get_video_label1( size, cookies, 'train')
+        data_video, data_label, cookies = get_video_label1( size, cookies, 'train')
         print(cookies)
-        [trainX, trainY, label_length] = [data_audio, [], []]
+        [trainX, trainY, label_length] = [data_video, [], []]
         for i in range(size):
             # trainX.append(get_feature(data_audio[i]))
             trainY.append(text_to_labels(data_label[i]))
@@ -301,9 +255,6 @@ def decode_batch(test_func, word_batch, input_length):
 
 def ctc_lambda_func(args):
     y_pred, labels, input_length, label_length = args
-    # the 2 is critical here since the first couple outputs of the RNN
-    # tend to be garbage:
- #   y_pred = y_pred[:, :, :]   # The first argument should be from 2: , Since K.image_dim_ordering() == 'tf' !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
 
 
@@ -325,24 +276,6 @@ class VizCallback(keras.callbacks.Callback):
         self.test_func = test_func
         self.text_img_gen = text_img_gen
         self.num_display_words = num_display_words
-
-    # def show_edit_distance(self, num):
-    #     num_left = num
-    #     mean_norm_ed = 0.0
-    #     mean_ed = 0.0
-    #     while num_left > 0:
-    #         word_batch = next(self.text_img_gen)[0]
-    #         num_proc = min(word_batch['the_input'].shape[0], num_left)
-    #         decoded_res = decode_batch(self.test_func, word_batch['the_input'][0:num_proc])
-    #         for j in range(0, num_proc):
-    #             edit_dist = editdistance.eval(decoded_res[j], word_batch['source_str'][j])
-    #             mean_ed += float(edit_dist)
-    #             mean_norm_ed += float(edit_dist) / len(word_batch['source_str'][j])
-    #         num_left -= num_proc
-    #     mean_norm_ed = mean_norm_ed / num
-    #     mean_ed = mean_ed / num
-    #     print('\nOut of %d samples:  Mean edit distance: %.3f Mean normalized edit distance: %0.3f'
-    #           % (num, mean_ed, mean_norm_ed))
 
     def on_epoch_end(self, epoch, logs={}):
 
