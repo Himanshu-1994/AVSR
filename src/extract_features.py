@@ -37,8 +37,7 @@ def detect(img):
 
     status = 0
     dets = detector(img, 1)
-
-  #  print("Number of faces detected: {}".format(len(dets)))
+    #print("Number of faces detected: {}".format(len(dets)))
 
     # Get the landmarks/parts for the face in box d.
     if len(dets) ==0:
@@ -73,8 +72,8 @@ def detect(img):
     select_dct = dcts[inds]
     sorted_dct = select_dct[np.argsort(select_dct)]
     sorted_dct = np.fliplr([sorted_dct])[0]
-
     status = 1
+    
     return sorted_dct,status
 
 
@@ -106,12 +105,10 @@ for i in range(33):
 
         rd = False
         rd,frame = video.read()
-
         vid_dct = []
 
         while rd:
             dct_100,status = detect(frame)
-
             #vid_dct.append(insert)
             if status == 0:
                 badfiles.append(j)
