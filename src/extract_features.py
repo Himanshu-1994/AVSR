@@ -77,10 +77,9 @@ def detect(img):
     status = 1
     return sorted_dct,status
 
-#badfiles = [[] for x in range(10)]
 
 for i in range(33):
-#for i in range(10):
+
     badfiles = []
     audio_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/*.wav'))
     align_list = np.sort(glob.glob(data_path + 's' + str(i + 1) + '/align/*.align'))
@@ -95,16 +94,12 @@ for i in range(33):
     f_vid = h5py.File((data_path + 's' + str(i+1) + '/video/' + 'video_dct100' + '.hdf5'), 'w')
     f_aud = h5py.File((data_path + 's' + str(i+1)+'/audio_mfcc' + '.hdf5'), 'w')
 
-#    for j in range(0, length):
     for j in range(0, length):
         print ('file',j)
         print (audio_list[j])
         if audio_list[j][-10:-4] != align_list[j][-12:-6] != video_list[j][:-4]:
             print(
             "Error! audio file name " + audio_list[j] + " doesn't match with align or video file name " + align_list[j])
-
-#        grp_vid = f_vid.create_group(video_list[j][-10:-4])
-#        grp_aud = f_aud.create_group(audio_list[j][-10:-4])
 
         print (video_list[j],'video')
         video = cv2.VideoCapture(video_list[j])
@@ -117,11 +112,7 @@ for i in range(33):
         while rd:
             dct_100,status = detect(frame)
 
-        #    print ('frames',i)
-    #        if (len(vid_dct) > 0):
-        #        insert = (vid_dct[-1]+dct_100)/2.
-
-     #           vid_dct.append(insert)
+            #vid_dct.append(insert)
             if status == 0:
                 badfiles.append(j)
                 break
@@ -130,7 +121,7 @@ for i in range(33):
 
         if status == 0:
             continue
-       # vid_dct.append(vid_dct[-1])
+        # vid_dct.append(vid_dct[-1])
         video_dct_interp = np.asarray(vid_dct)
         dset = f_vid.create_dataset(video_list[j][-10:-4], data=video_dct_interp, compression="gzip", chunks=True)
         print ('size of dct',video_dct_interp.shape)
@@ -140,7 +131,7 @@ for i in range(33):
         mfcc_vec = get_feature(audio, F)
         # sa = 'zipped'+str(j)
         dset_a = f_aud.create_dataset(audio_list[j][-10:-4], data=mfcc_vec, compression="gzip", chunks=True)
-    np.save('badfiles'+str(i),badfiles)
+
     print (i,'complete') 
   
 
