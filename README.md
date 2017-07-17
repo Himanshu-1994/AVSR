@@ -2,4 +2,6 @@
 
 Audio Visual Speech Recognition
 
-This is work in progress
+Team Members:
+1. Himanshu Pandotra
+2. Kanhaiya Kumar
