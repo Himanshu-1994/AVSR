@@ -1,6 +1,4 @@
-# AVSR
-
-Audio Visual Speech Recognition
+# Audio Visual Speech Recognition
 
 ![0001](https://user-images.githubusercontent.com/17162465/165390093-3d62bffa-5ccf-4001-a509-357d048bdf13.jpg)
 ![0002](https://user-images.githubusercontent.com/17162465/165390198-6d1da3d9-d46b-4602-b0f3-9650f84ce76b.jpg)
